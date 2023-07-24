@@ -1,9 +1,6 @@
 # Prints job ID and directory
 bjobsdir()
 {
-    #all_jobs=`bjobs | wc -l`
-    #all_jobs=`echo "$all_jobs - 1" | bc`
-
     job_id=`qstat -a | grep $USER | awk {'print $3'}`
 
     for i in $job_id; do 
