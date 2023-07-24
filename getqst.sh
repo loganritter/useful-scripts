@@ -20,15 +20,15 @@ for gas in c3h4 c3h6; do
                         qst=$(grep "qst =" runlog.log | tail -1 | awk {'print $4'})
 
                         if [[ $gas == "c3h4" ]]; then
-                                mmol=`echo "$wtp * 10 / 40.0639 * 22.4" | bc -l`
-                                echo $mmol $qst >> $base/$gas"_"$temp"_qst.dat"
-                                echo $mmol $qst
+                                cm3=`echo "$wtp * 10 / 40.0639 * 22.4" | bc -l`
+                                echo $cm3 $qst >> $base/$gas"_"$temp"_qst.dat"
+                                echo $cm3 $qst
                         fi
 
                         if [[ $gas == "c3h6" ]]; then
-                                mmol=`echo "$wtp * 10 / 42.08 * 22.4" | bc -l`
-                                echo $mmol $qst >> $base/$gas"_"$temp"_qst.dat"
-                                echo $mmol $qst
+                                cm3=`echo "$wtp * 10 / 42.08 * 22.4" | bc -l`
+                                echo $cm3 $qst >> $base/$gas"_"$temp"_qst.dat"
+                                echo $cm3 $qst
                         fi
 
                         cd ../
