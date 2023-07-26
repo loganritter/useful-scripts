@@ -19,3 +19,14 @@ bkill_here()
         bkill $i
     done
 }
+
+# Check jobs running in current directory
+jobs_here()
+{
+    base=`pwd`
+    job_id=`bjobsdir | grep $base | awk {'print $1'} | sort`
+
+    for i in $job_id; do
+        bjobs -w $i | grep $i | awk {'print $1, $7'}
+    done
+}
