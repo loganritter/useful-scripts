@@ -7,10 +7,10 @@ for temp in 280 310; do
 
             tail -250 ./$temp/$pres/runlog.log > runlog.tail
 
-            cat runlog.tail | grep "wt_%(KR)(ME)=" > kr-sorb.tmp
-            cat runlog.tail | grep "wt_%(XE)(ME)=" > xe-sorb.tmp
-            cat runlog.tail | grep "Average_N(KR)=" > kr-sel.tmp
-            cat runlog.tail | grep "Average_N(XE)=" > xe-sel.tmp
+            cat runlog.tail | grep "wt_%(Kr)(ME)=" > kr-sorb.tmp
+            cat runlog.tail | grep "wt_%(Xe)(ME)=" > xe-sorb.tmp
+            cat runlog.tail | grep "Average_N(Kr)=" > kr-sel.tmp
+            cat runlog.tail | grep "Average_N(Xe)=" > xe-sel.tmp
 
             tail -1 kr-sorb.tmp | awk 'END{print '$temp/$pres', ($2*10)/(83.798), ($4*10)/(83.798)}' >> $temp"_AmountSorbed_Kr_mmol_g.dat"
             tail -1 xe-sorb.tmp | awk 'END{print '$temp/$pres', ($2*10)/(131.29), ($4*10)/(131.29)}' >> $temp"_AmountSorbed_Xe_mmol_g.dat"
