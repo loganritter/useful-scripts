@@ -2,27 +2,32 @@
 
 base=$(pwd)
 
-for temp in 290 300; do
-        mkdir -p $temp
-        cd $temp
+for gas in n2; do
+        mkdir -p $gas
+        cd $gas
 
-        #for pressure in `seq 0.1 0.1 1.0`; do
-        for pressure in 0.0003 0.0005 0.0008 0.001 0.002; do
-                mkdir -p $pressure
-                cd $pressure
-                cp $base/LJ_2x2x2.pdb .
+        for temp in 77; do
+                mkdir -p $temp
+                cd $temp
 
-                sed "s/xjobx/$temp"_"$pressure/g" $base/mpmc_submit.sh > mpmc_submit.sh
-                sed "s/xjobx/$temp"_"$pressure/g" $base/mpmc.inp > mpmc.inp
-                sed -i "s/xtempx/$temp/g" mpmc.inp
-                sed -i "s/xpresx/$pressure/g" mpmc.inp
+                for pressure in `seq 0.01 0.01 0.09` `seq 0.1 0.1 1.0`; do
+                        mkdir -p $pressure
+                        cd $pressure
+                        cp $base/INPUT.pdb .
 
-                rm -f std*
-                rm -f core.*
+                        sed "s/xjobx/$gas"_"$temp"_"$pressure/g" $base/mpmc_submit.sh > mpmc_submit.sh
+                        sed "s/xjobx/$gas"_"$temp"_"$pressure/g" $base/mpmc.inp > mpmc.inp
+                        #sed -i "s/xtempx/$temp/g" mpmc.inp
+                        sed -i "s/xpresx/$pressure/g" mpmc.inp
 
-                bsub < mpmc_submit.sh
-                pwd
+                        rm -f std*
+                        rm -f core.*
 
+                        bsub < mpmc_submit.sh
+                        pwd
+
+                        cd ../
+                done
                 cd ../
         done
         cd ../
