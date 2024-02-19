@@ -22,7 +22,7 @@ for gas in h2 n2; do
 
 			if [[ $gas == "n2" ]]; then
 				wtp=`grep "wt % (ME) =" runlog.log | tail -1 | awk {'print $6'}`
-                mmolg=`grep "wt % (ME) =" runlog.log | awk 'END{print ($6*10/28.0134)}'`
+              	mmolg=`grep "wt % (ME) =" runlog.log | awk 'END{print ($6*10/28.0134)}'`
 				mmolmmol=`grep "wt % (ME) =" runlog.log | awk 'END{print ($6*10/28.0134/4.290756)}'`
 
 			fi
