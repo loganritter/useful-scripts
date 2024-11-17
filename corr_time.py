@@ -18,10 +18,9 @@ def read_gcmc_data(filename):
         Dictionary containing the data arrays
     """
     try:
-        # Read the data using pandas with updated separator syntax
         data = pd.read_csv(filename, 
-                          sep=r'\s+',  # Handle variable whitespace
-                          header=None,  # No header in file
+                          sep=r'\s+',
+                          header=None,
                           names=['steps', 'uptake', 'n_particles', 'potential'])
         
         # Convert to dictionary of numpy arrays
@@ -65,7 +64,7 @@ def autocorrelation(data, maxlag=None):
     data = data - np.mean(data)
     data = data / np.std(data)
     
-    # Calculate autocorrelation using numpy's correlate
+    # Calculate autocorrelation
     acf = np.correlate(data, data, mode='full')
     acf = acf[N-1:] # Keep only the positive lags
     acf = acf[:maxlag] # Trim to maxlag
@@ -108,7 +107,7 @@ def calculate_correlation_time(acf, lags):
 def analyze_gcmc_equilibration(filename, maxlag=None):
     """
     Read GCMC data from file and analyze equilibration by calculating autocorrelation
-    functions and correlation times.
+    functions and correlation times, and check if the system has reached equilibrium.
     
     Parameters:
     -----------
@@ -146,17 +145,28 @@ def analyze_gcmc_equilibration(filename, maxlag=None):
     tau_n = calculate_correlation_time(acf_n, lags_n)
     tau_p = calculate_correlation_time(acf_p, lags_p)
     
-    # Print correlation times immediately after calculation
-    print("\nCorrelation Times:")
-    print("-" * 30)
-    print(f"Uptake:          τ = {tau_u:10.2f} steps")
-    print(f"N particles:     τ = {tau_n:10.2f} steps")
-    print(f"Potential:       τ = {tau_p:10.2f} steps")
+    # Check if ACF decays to 1/e within a reasonable time
+    def equilibrium_check(acf, lags):
+        threshold = 1/np.e
+        try:
+            idx = np.where(acf < threshold)[0][0]
+            return "Yes" if lags[idx] <= 0.2 * lags[-1] else "No"
+        except IndexError:
+            return "No"
+
+    equil_u = equilibrium_check(acf_u, lags_u)
+    equil_n = equilibrium_check(acf_n, lags_n)
+    equil_p = equilibrium_check(acf_p, lags_p)
+
+    # Print correlation times and equilibration status
+    print("\nCorrelation Times and Equilibration Check:")
+    print("-" * 50)
+    print(f"Uptake:          τ = {tau_u:10.2f} steps | Equilibrium reached: {equil_u}")
+    print(f"N particles:     τ = {tau_n:10.2f} steps | Equilibrium reached: {equil_n}")
+    print(f"Potential:       τ = {tau_p:10.2f} steps | Equilibrium reached: {equil_p}")
     
     # Create plots
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 12))
-    
-    # Raw data plots
     fig_raw, (ax_r1, ax_r2, ax_r3) = plt.subplots(3, 1, figsize=(10, 12))
     
     # Uptake plots
@@ -230,17 +240,20 @@ def analyze_gcmc_equilibration(filename, maxlag=None):
         'acf_potential': acf_p,
         'statistics': stats_dict,
         'acf_figure': fig,
-        'raw_data_figure': fig_raw
+        'raw_data_figure': fig_raw,
+        'equilibration_check': {
+            'uptake': equil_u,
+            'n_particles': equil_n,
+            'potential': equil_p
+        }
     }
     
     return results
 
 if __name__ == "__main__":
-    # Example usage
     filename = "data.txt"  # Replace with your actual filename
     
     try:
-        # Analyze the data
         results = analyze_gcmc_equilibration(filename)
         plt.show()
         
