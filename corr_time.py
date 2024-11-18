@@ -2,6 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy import stats
 import pandas as pd
+import sys
+import argparse
 
 def read_gcmc_data(filename):
     """
@@ -189,8 +191,8 @@ def analyze_gcmc_equilibration(filename, maxlag=None):
     print("\nCorrelation Times and Equilibration Check:")
     print("-" * 50)
     print(f"Uptake:          τ = {tau_u:10.2f} steps | Equilibrium reached: {equil_u}")
-    print(f"N particles:     τ = {tau_n:10.2f} steps | Equilibrium reached: {equil_n}")
-    print(f"Potential:       τ = {tau_p:10.2f} steps | Equilibrium reached: {equil_p}")
+    print(f"N:               τ = {tau_n:10.2f} steps | Equilibrium reached: {equil_n}")
+    print(f"U:               τ = {tau_p:10.2f} steps | Equilibrium reached: {equil_p}")
     
     # Create plots
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 12))
@@ -251,8 +253,8 @@ def analyze_gcmc_equilibration(filename, maxlag=None):
     print("\nBasic Statistics:")
     print("-" * 30)
     print(f"Uptake:      {stats_dict['uptake_mean']:10.2f} ± {stats_dict['uptake_std']:6.2f} mmol/g")
-    print(f"N particles: {stats_dict['n_particles_mean']:10.2f} ± {stats_dict['n_particles_std']:6.2f}")
-    print(f"Potential:   {stats_dict['potential_mean']:10.2f} ± {stats_dict['potential_std']:6.2f}")
+    print(f"N:           {stats_dict['n_particles_mean']:10.2f} ± {stats_dict['n_particles_std']:6.2f}")
+    print(f"U:           {stats_dict['potential_mean']:10.2f} ± {stats_dict['potential_std']:6.2f} K")
     print("\n")
     
     results = {
@@ -277,12 +279,18 @@ def analyze_gcmc_equilibration(filename, maxlag=None):
     
     return results
 
-if __name__ == "__main__":
-    filename = "data.txt"
+def main():
+    parser = argparse.ArgumentParser(description='Analyze GCMC simulation data for correlation times and equilibration.')
+    parser.add_argument('filename', type=str, help='Path to the GCMC data file')
+    parser.add_argument('--maxlag', type=int, help='Maximum lag time for correlation calculation', default=None)
+    args = parser.parse_args()
     
     try:
-        results = analyze_gcmc_equilibration(filename)
+        results = analyze_gcmc_equilibration(args.filename, args.maxlag)
         plt.show()
-        
     except Exception as e:
         print(f"Error during analysis: {str(e)}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
