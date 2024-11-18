@@ -5,279 +5,237 @@ import pandas as pd
 import sys
 import argparse
 
-def read_gcmc_data(filename):
+class GCMCStatistics:
     """
-    Read GCMC simulation data from a text file.
+    A class for analyzing Grand Canonical Monte Carlo (GCMC) simulation data.
     
-    Parameters:
+    Attributes:
     -----------
     filename : str
-        Path to the text file containing GCMC data
-        
-    Returns:
-    --------
-    dict
-        Dictionary containing the data arrays
-    """
-    try:
-        data = pd.read_csv(filename, 
-                          sep=r'\s+',
-                          header=None,
-                          names=['steps', 'uptake', 'n_particles', 'potential'])
-        
-        # Convert to dictionary of numpy arrays
-        data_dict = {
-            'steps': data['steps'].values,
-            'uptake': data['uptake'].values,
-            'n_particles': data['n_particles'].values,
-            'potential': data['potential'].values
-        }
-        
-        return data_dict
-    
-    except Exception as e:
-        print(f"Error reading file {filename}: {str(e)}")
-        raise
-
-def autocorrelation(data, maxlag=None):
-    """
-    Calculate the autocorrelation function for a time series.
-    
-    Parameters:
-    -----------
-    data : array-like
-        Time series data
-    maxlag : int, optional
-        Maximum lag time to calculate correlation. Default is N//2
-        
-    Returns:
-    --------
-    lags : array
-        Lag times
-    acf : array
-        Autocorrelation function values
-    """
-    N = len(data)
-    if maxlag is None:
-        maxlag = N // 2
-    
-    # Normalize the data
-    data = np.array(data)
-    data = (data - np.mean(data)) / np.std(data)
-
-    # Calculate autocorrelation
-    acf = np.correlate(data, data, mode='full')[N-1:]
-    acf = acf[:maxlag] / N
-    lags = np.arange(len(acf))
-    
-    return lags, acf
-
-def calculate_correlation_time(acf, lags):
-    """
-    Calculate the correlation time by integrating the ACF until it first crosses zero
-    or reaches 1/e of its initial value.
-    
-    Parameters:
-    -----------
-    acf : array
-        Autocorrelation function values
-    lags : array
-        Lag times
-        
-    Returns:
-    --------
-    tau : float
-        Correlation time
-    """
-    # Find where ACF crosses 1/e
-    threshold = 1/np.e
-    try:
-        # Find first crossing of 1/e
-        idx = np.where(acf < threshold)[0][0]
-        tau = np.trapz(acf[:idx], lags[:idx])
-    except IndexError:
-        # If ACF never crosses 1/e, use all available data
-        tau = np.trapz(acf, lags)
-    
-    return tau
-    
-def estimate_required_correlation_time(acf, lags):
-    """
-    Estimate the required correlation time for the ACF to reach 1/e.
-    
-    Parameters:
-    -----------
-    acf : array
-        Autocorrelation function values
-    lags : array
-        Lag times
-        
-    Returns:
-    --------
-    required_tau : float
-        Estimated correlation time required for the ACF to decay to 1/e
-    """
-    threshold = 1 / np.e
-    
-    # Check if the ACF never decays below 1/e
-    if all(acf > threshold):
-        # Use a linear extrapolation for simplicity to estimate where it might cross 1/e
-        # Consider the last two points in the ACF to make a linear extrapolation
-        slope = (acf[-1] - acf[-2]) / (lags[-1] - lags[-2])
-        intercept = acf[-1] - slope * lags[-1]
-        required_tau = (threshold - intercept) / slope
-        required_tau = max(required_tau, 0)  # Ensure it's non-negative
-    else:
-        # Find the point where the ACF crosses below 1/e
-        required_tau = lags[np.where(acf < threshold)[0][0]]
-    
-    return required_tau
-
-def analyze_gcmc_equilibration(filename, maxlag=None):
-    """
-    Read GCMC data from file and analyze equilibration by calculating autocorrelation
-    functions and correlation times, and check if the system has reached equilibrium.
-    
-    Parameters:
-    -----------
-    filename : str
-        Path to the text file containing GCMC data
-    maxlag : int, optional
-        Maximum lag time for autocorrelation calculation
-        
-    Returns:
-    --------
-    dict
+        Path to the GCMC data file
+    data : dict
+        Dictionary containing the loaded data arrays
+    results : dict
         Dictionary containing analysis results
+    maxlag : int, optional
+        Maximum lag time for correlation calculations
     """
-    print(f"\nAnalyzing file: {filename}")
-    print("=" * 50)
     
-    # Read the data
-    data = read_gcmc_data(filename)
-    
-    # Calculate time step from steps column
-    time_step = np.mean(np.diff(data['steps']))
-    
-    # Calculate ACFs for all relevant quantities
-    lags_u, acf_u = autocorrelation(data['uptake'], maxlag)
-    lags_n, acf_n = autocorrelation(data['n_particles'], maxlag)
-    lags_p, acf_p = autocorrelation(data['potential'], maxlag)
-    
-    # Scale lags by time_step
-    lags_u = lags_u * time_step
-    lags_n = lags_n * time_step
-    lags_p = lags_p * time_step
-    
-    # Calculate correlation times
-    tau_u = calculate_correlation_time(acf_u, lags_u)
-    tau_n = calculate_correlation_time(acf_n, lags_n)
-    tau_p = calculate_correlation_time(acf_p, lags_p)
-    
-    # Check if ACF decays to 1/e within a reasonable time
-    def equilibrium_check(acf, lags):
-        threshold = 1 / np.e
+    def __init__(self, filename, maxlag=None):
+        """
+        Initialize the GCMCStatistics with a data file.
+        
+        Parameters:
+        -----------
+        filename : str
+            Path to the GCMC data file
+        maxlag : int, optional
+            Maximum lag time for correlation calculations
+        """
+        self.filename = filename
+        self.maxlag = maxlag
+        self.data = None
+        self.results = {}
+        self.time_step = None
+        
+    def read_data(self):
+        try:
+            data = pd.read_csv(self.filename, 
+                             sep=r'\s+',
+                             header=None,
+                             names=['steps', 'uptake', 'n_particles', 'potential'])
+            
+            self.data = {
+                'steps': data['steps'].values,
+                'uptake': data['uptake'].values,
+                'n_particles': data['n_particles'].values,
+                'potential': data['potential'].values
+            }
+            
+            self.time_step = np.mean(np.diff(self.data['steps']))
+            
+        except Exception as e:
+            print(f"Error reading file {self.filename}: {str(e)}")
+            raise
+            
+    def calculate_autocorrelation(self, data):
+        """
+        Calculate autocorrelation function for a time series.
+        
+        Parameters:
+        -----------
+        data : array-like
+            Time series data
+            
+        Returns:
+        --------
+        tuple
+            (lags, acf) arrays
+        """
+        N = len(data)
+        maxlag = self.maxlag if self.maxlag is not None else N // 2
+        
+        # Normalize the data
+        data = np.array(data)
+        data = (data - np.mean(data)) / np.std(data)
+
+        # Calculate autocorrelation
+        acf = np.correlate(data, data, mode='full')[N-1:]
+        acf = acf[:maxlag] / N
+        lags = np.arange(len(acf))
+        
+        return lags, acf
+        
+    def calculate_correlation_time(self, acf, lags):
+        """
+        Calculate correlation time from ACF.
+        
+        Parameters:
+        -----------
+        acf : array
+            Autocorrelation function values
+        lags : array
+            Lag times
+            
+        Returns:
+        --------
+        float
+            Correlation time
+        """
+        threshold = 1/np.e
+        try:
+            idx = np.where(acf < threshold)[0][0]
+            tau = np.trapz(acf[:idx], lags[:idx])
+        except IndexError:
+            tau = np.trapz(acf, lags)
+        
+        return tau
+        
+    def check_equilibration(self, acf, lags):
+        """
+        Check if system has reached equilibrium.
+        
+        Parameters:
+        -----------
+        acf : array
+            Autocorrelation function values
+        lags : array
+            Lag times
+            
+        Returns:
+        --------
+        str
+            'Yes' or 'No' indicating equilibration status
+        """
+        threshold = 1/np.e
         try:
             idx = np.where(acf < threshold)[0][0]
             return "Yes" if lags[idx] <= 0.2 * lags[-1] else "No"
         except IndexError:
             return "No"
-
-    equil_u = equilibrium_check(acf_u, lags_u)
-    equil_n = equilibrium_check(acf_n, lags_n)
-    equil_p = equilibrium_check(acf_p, lags_p)
-
-    # Print correlation times and equilibration status
-    print("\nCorrelation Times and Equilibration Check:")
-    print("-" * 50)
-    print(f"Uptake:          τ = {tau_u:10.2f} steps | Equilibrium reached: {equil_u}")
-    print(f"N:               τ = {tau_n:10.2f} steps | Equilibrium reached: {equil_n}")
-    print(f"U:               τ = {tau_p:10.2f} steps | Equilibrium reached: {equil_p}")
-    
-    # Create plots
-    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 12))
-    fig_raw, (ax_r1, ax_r2, ax_r3) = plt.subplots(3, 1, figsize=(10, 12))
-    
-    # Uptake plots
-    ax1.plot(lags_u, acf_u, 'b-', label=f'τ = {tau_u:.1f} steps')
-    ax1.axhline(y=1/np.e, color='r', linestyle='--', alpha=0.5)
-    ax1.set_xlabel('Lag time (steps)')
-    ax1.set_ylabel('Uptake ACF')
-    ax1.legend()
-    ax1.grid(True)
-    
-    ax_r1.plot(data['steps'], data['uptake'], 'b-')
-    ax_r1.set_xlabel('Steps')
-    ax_r1.set_ylabel('Uptake (mmol/g)')
-    ax_r1.grid(True)
-    
-    # Number of particles plots
-    ax2.plot(lags_n, acf_n, 'g-', label=f'τ = {tau_n:.1f} steps')
-    ax2.axhline(y=1/np.e, color='r', linestyle='--', alpha=0.5)
-    ax2.set_xlabel('Lag time (steps)')
-    ax2.set_ylabel('N particles ACF')
-    ax2.legend()
-    ax2.grid(True)
-    
-    ax_r2.plot(data['steps'], data['n_particles'], 'g-')
-    ax_r2.set_xlabel('Steps')
-    ax_r2.set_ylabel('Number of particles')
-    ax_r2.grid(True)
-    
-    # Potential energy plots
-    ax3.plot(lags_p, acf_p, 'r-', label=f'τ = {tau_p:.1f} steps')
-    ax3.axhline(y=1/np.e, color='r', linestyle='--', alpha=0.5)
-    ax3.set_xlabel('Lag time (steps)')
-    ax3.set_ylabel('Potential Energy ACF')
-    ax3.legend()
-    ax3.grid(True)
-    
-    ax_r3.plot(data['steps'], data['potential'], 'r-')
-    ax_r3.set_xlabel('Steps')
-    ax_r3.set_ylabel('Potential Energy')
-    ax_r3.grid(True)
-    
-    plt.tight_layout()
-    
-    # Calculate basic statistics
-    stats_dict = {
-        'uptake_mean': np.mean(data['uptake']),
-        'uptake_std': np.std(data['uptake']),
-        'n_particles_mean': np.mean(data['n_particles']),
-        'n_particles_std': np.std(data['n_particles']),
-        'potential_mean': np.mean(data['potential']),
-        'potential_std': np.std(data['potential'])
-    }
-    
-    # Print statistics
-    print("\nBasic Statistics:")
-    print("-" * 30)
-    print(f"Uptake:      {stats_dict['uptake_mean']:10.2f} ± {stats_dict['uptake_std']:6.2f} mmol/g")
-    print(f"N:           {stats_dict['n_particles_mean']:10.2f} ± {stats_dict['n_particles_std']:6.2f}")
-    print(f"U:           {stats_dict['potential_mean']:10.2f} ± {stats_dict['potential_std']:6.2f} K")
-    print("\n")
-    
-    results = {
-        'uptake_correlation_time': tau_u,
-        'nparticles_correlation_time': tau_n,
-        'potential_correlation_time': tau_p,
-        'lags_uptake': lags_u,
-        'acf_uptake': acf_u,
-        'lags_n': lags_n,
-        'acf_n': acf_n,
-        'lags_potential': lags_p,
-        'acf_potential': acf_p,
-        'statistics': stats_dict,
-        'acf_figure': fig,
-        'raw_data_figure': fig_raw,
-        'equilibration_check': {
-            'uptake': equil_u,
-            'n_particles': equil_n,
-            'potential': equil_p
+            
+    def calculate_statistics(self):
+        self.results['statistics'] = {
+            'uptake_mean': np.mean(self.data['uptake']),
+            'uptake_std': np.std(self.data['uptake']),
+            'n_particles_mean': np.mean(self.data['n_particles']),
+            'n_particles_std': np.std(self.data['n_particles']),
+            'potential_mean': np.mean(self.data['potential']),
+            'potential_std': np.std(self.data['potential'])
         }
-    }
-    
-    return results
+        
+    def create_plots(self):
+        # Create figure for ACFs
+        fig_acf, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 12))
+        
+        # Create figure for raw data
+        fig_raw, (ax_r1, ax_r2, ax_r3) = plt.subplots(3, 1, figsize=(10, 12))
+        
+        # Plot ACFs
+        variables = ['uptake', 'n_particles', 'potential']
+        colors = ['b', 'g', 'r']
+        axes_acf = [ax1, ax2, ax3]
+        axes_raw = [ax_r1, ax_r2, ax_r3]
+        labels = ['Uptake', 'N particles', 'Potential Energy']
+        
+        for var, color, ax_acf, ax_raw, label in zip(variables, colors, axes_acf, axes_raw, labels):
+            # Get correlation data
+            lags = self.results[f'{var}_lags']
+            acf = self.results[f'{var}_acf']
+            tau = self.results[f'{var}_correlation_time']
+            
+            # Plot ACF
+            ax_acf.plot(lags, acf, f'{color}-', label=f'τ = {tau:.1f} steps')
+            ax_acf.axhline(y=1/np.e, color='r', linestyle='--', alpha=0.5)
+            ax_acf.set_xlabel('Lag time (steps)')
+            ax_acf.set_ylabel(f'{label} ACF')
+            ax_acf.legend()
+            ax_acf.grid(True)
+            
+            # Plot raw data
+            ax_raw.plot(self.data['steps'], self.data[var], f'{color}-')
+            ax_raw.set_xlabel('Steps')
+            ax_raw.set_ylabel(label)
+            ax_raw.grid(True)
+            
+        plt.tight_layout()
+        
+        # Save figures
+        fig_acf.savefig('acf_plots.png')
+        fig_raw.savefig('raw_data_plots.png')
+        
+        self.results['figures'] = {
+            'acf': fig_acf,
+            'raw': fig_raw
+        }
+        
+    def print_results(self):
+        print(f"\nAnalyzing file: {self.filename}")
+        print("=" * 50)
+        
+        # Print correlation times and equilibration status
+        print("\nCorrelation Times and Equilibration Check:")
+        print("-" * 50)
+        for var in ['uptake', 'n_particles', 'potential']:
+            tau = self.results[f'{var}_correlation_time']
+            equil = self.results['equilibration_check'][var]
+            print(f"{var:15} τ = {tau:10.2f} steps | Equilibrium reached: {equil}")
+        
+        # Print statistics
+        stats = self.results['statistics']
+        print("\nBasic Statistics:")
+        print("-" * 30)
+        print(f"Uptake:      {stats['uptake_mean']:10.2f} ± {stats['uptake_std']:6.2f} mmol/g")
+        print(f"N particles: {stats['n_particles_mean']:10.2f} ± {stats['n_particles_std']:6.2f}")
+        print(f"Potential:   {stats['potential_mean']:10.2f} ± {stats['potential_std']:6.2f}")
+        print("\nPlots saved as 'acf_plots.png' and 'raw_data_plots.png'")
+        
+    def analyze(self):
+        self.read_data()
+        
+        # Analyze each variable
+        for var in ['uptake', 'n_particles', 'potential']:
+            # Calculate ACF
+            lags, acf = self.calculate_autocorrelation(self.data[var])
+            scaled_lags = lags * self.time_step
+            
+            # Store results
+            self.results[f'{var}_lags'] = scaled_lags
+            self.results[f'{var}_acf'] = acf
+            self.results[f'{var}_correlation_time'] = self.calculate_correlation_time(acf, scaled_lags)
+            
+        # Check equilibration
+        self.results['equilibration_check'] = {
+            var: self.check_equilibration(self.results[f'{var}_acf'], 
+                                        self.results[f'{var}_lags'])
+            for var in ['uptake', 'n_particles', 'potential']
+        }
+        
+        self.calculate_statistics()
+        self.create_plots()
+        self.print_results()
+        
+        return self.results
 
 def main():
     parser = argparse.ArgumentParser(description='Analyze GCMC simulation data for correlation times and equilibration.')
@@ -286,7 +244,8 @@ def main():
     args = parser.parse_args()
     
     try:
-        results = analyze_gcmc_equilibration(args.filename, args.maxlag)
+        analyzer = GCMCStatistics(args.filename, args.maxlag)
+        results = analyzer.analyze()
         plt.show()
     except Exception as e:
         print(f"Error during analysis: {str(e)}")
