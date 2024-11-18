@@ -61,18 +61,13 @@ def autocorrelation(data, maxlag=None):
     
     # Normalize the data
     data = np.array(data)
-    data = data - np.mean(data)
-    data = data / np.std(data)
-    
+    data = (data - np.mean(data)) / np.std(data)
+
     # Calculate autocorrelation
-    acf = np.correlate(data, data, mode='full')
-    acf = acf[N-1:] # Keep only the positive lags
-    acf = acf[:maxlag] # Trim to maxlag
-    
-    # Normalize
-    acf = acf / N
-    
+    acf = np.correlate(data, data, mode='full')[N-1:]
+    acf = acf[:maxlag] / N
     lags = np.arange(len(acf))
+    
     return lags, acf
 
 def calculate_correlation_time(acf, lags):
@@ -103,6 +98,38 @@ def calculate_correlation_time(acf, lags):
         tau = np.trapz(acf, lags)
     
     return tau
+    
+def estimate_required_correlation_time(acf, lags):
+    """
+    Estimate the required correlation time for the ACF to reach 1/e.
+    
+    Parameters:
+    -----------
+    acf : array
+        Autocorrelation function values
+    lags : array
+        Lag times
+        
+    Returns:
+    --------
+    required_tau : float
+        Estimated correlation time required for the ACF to decay to 1/e
+    """
+    threshold = 1 / np.e
+    
+    # Check if the ACF never decays below 1/e
+    if all(acf > threshold):
+        # Use a linear extrapolation for simplicity to estimate where it might cross 1/e
+        # Consider the last two points in the ACF to make a linear extrapolation
+        slope = (acf[-1] - acf[-2]) / (lags[-1] - lags[-2])
+        intercept = acf[-1] - slope * lags[-1]
+        required_tau = (threshold - intercept) / slope
+        required_tau = max(required_tau, 0)  # Ensure it's non-negative
+    else:
+        # Find the point where the ACF crosses below 1/e
+        required_tau = lags[np.where(acf < threshold)[0][0]]
+    
+    return required_tau
 
 def analyze_gcmc_equilibration(filename, maxlag=None):
     """
@@ -147,7 +174,7 @@ def analyze_gcmc_equilibration(filename, maxlag=None):
     
     # Check if ACF decays to 1/e within a reasonable time
     def equilibrium_check(acf, lags):
-        threshold = 1/np.e
+        threshold = 1 / np.e
         try:
             idx = np.where(acf < threshold)[0][0]
             return "Yes" if lags[idx] <= 0.2 * lags[-1] else "No"
@@ -251,7 +278,7 @@ def analyze_gcmc_equilibration(filename, maxlag=None):
     return results
 
 if __name__ == "__main__":
-    filename = "data.txt"  # Replace with your actual filename
+    filename = "data.txt"
     
     try:
         results = analyze_gcmc_equilibration(filename)
